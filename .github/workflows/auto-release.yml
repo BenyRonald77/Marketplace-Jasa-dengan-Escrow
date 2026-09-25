@@ -1,0 +1,19 @@
+name: Escrow Auto-Release
+
+# Memindai order DELIVERED yang sudah lewat batas waktu dan otomatis
+# menyelesaikannya (mencairkan dana ke penjual). Jalan tiap jam. Sesuaikan
+# APP_URL & CRON_SECRET di repo Settings > Secrets and variables > Actions
+# sebelum mengaktifkan workflow ini.
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Panggil endpoint auto-release
+        run: |
+          curl -sf -X POST "${{ secrets.APP_URL }}/api/cron/auto-release" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

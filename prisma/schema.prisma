@@ -1,0 +1,78 @@
+// Prisma schema — Marketplace Jasa dengan Escrow
+// Default provider: SQLite (mudah dijalankan lokal). Untuk production ganti
+// provider ke "postgresql" dan sesuaikan DATABASE_URL (lihat README.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Satu tipe akun untuk semua pengguna — siapa pun bisa berperan sebagai
+// pembeli (memesan jasa) maupun penjual (membuka jasa).
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  balance      Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  services     Service[]
+  ordersBought Order[]   @relation("OrdersAsBuyer")
+  ordersSold   Order[]   @relation("OrdersAsSeller")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  sellerId    String
+  title       String
+  description String
+  price       Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  seller User    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  orders Order[]
+}
+
+// status: "PAID" | "IN_PROGRESS" | "DELIVERED" | "COMPLETED" | "DISPUTED"
+// lihat src/lib/constants.ts untuk state machine lengkap
+model Order {
+  id            String    @id @default(cuid())
+  serviceId     String
+  buyerId       String
+  sellerId      String
+  amount        Int
+  status        String    @default("PAID")
+  autoReleaseAt DateTime?
+  deliveredAt   DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  service   Service         @relation(fields: [serviceId], references: [id])
+  buyer     User            @relation("OrdersAsBuyer", fields: [buyerId], references: [id])
+  seller    User            @relation("OrdersAsSeller", fields: [sellerId], references: [id])
+  auditLogs OrderAuditLog[]
+
+  @@index([status, autoReleaseAt])
+}
+
+// actorRole: "BUYER" | "SELLER" | "SYSTEM" — ditulis sekali, tidak pernah diubah/dihapus.
+model OrderAuditLog {
+  id         String   @id @default(cuid())
+  orderId    String
+  fromStatus String
+  toStatus   String
+  actorId    String?
+  actorRole  String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
